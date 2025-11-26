@@ -1,0 +1,47 @@
+{
+  "Comment": "Slack -> AgentCore Runtime -> PostToSlack State Machine",
+  "StartAt": "InvokeAgent",
+  "States": {
+    "InvokeAgent": {
+      "Type": "Task",
+      "Comment": "Call Bedrock AgentCore Runtime handler via AWS SDK integration",
+      "Resource": "arn:aws:states:::aws-sdk:bedrockagent:invokeAgent",
+      "Parameters": {
+        "agentId": "<AGENT_ID>",
+        "agentAliasId": "<AGENT_ALIAS_ID>",
+        "sessionId.$": "$.thread_ts",
+        "inputText.$": "$.text",
+        "metadata": {
+          "slack": {
+            "team_id.$": "$.team_id",
+            "channel_id.$": "$.channel_id",
+            "user_id.$": "$.user_id",
+            "is_mentioned.$": "$.is_mentioned",
+            "is_dm.$": "$.is_dm",
+            "channel_kind.$": "$.channel_kind",
+            "ts.$": "$.ts",
+            "thread_ts.$": "$.thread_ts"
+          }
+        }
+      },
+      "ResultPath": "$.agentResult",
+      "Next": "PostToSlack"
+    },
+    "PostToSlack": {
+      "Type": "Task",
+      "Comment": "Invoke Slack posting Lambda with the agent result",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "<POST_TO_SLACK_LAMBDA_ARN>",
+        "Payload": {
+          "team_id.$": "$.team_id",
+          "channel_id.$": "$.channel_id",
+          "thread_ts.$": "$.thread_ts",
+          "agentResult.$": "$.agentResult"
+        }
+      },
+      "ResultPath": "$.postToSlackResult",
+      "End": true
+    }
+  }
+}
