@@ -1,0 +1,36 @@
+{
+  "name": "slack-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "cdk:synth": "cdk synth",
+    "cdk:deploy": "cdk deploy --all",
+    "cdk:diff": "cdk diff",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.15.21",
+    "@typescript-eslint/eslint-plugin": "^8.32.1",
+    "@typescript-eslint/parser": "^8.32.1",
+    "aws-cdk": "^2.201.0",
+    "esbuild": "^0.25.4",
+    "eslint": "^9.27.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@aws-cdk/aws-lambda-python-alpha": "^2.201.0-alpha.0",
+    "aws-cdk-lib": "^2.201.0",
+    "constructs": "^10.4.2",
+    "dotenv": "^16.5.0",
+    "source-map-support": "^0.5.21"
+  }
+}

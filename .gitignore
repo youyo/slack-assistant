@@ -1,0 +1,55 @@
+# CDK
+cdk.out/
+*.js
+!jest.config.js
+*.d.ts
+node_modules/
+
+# TypeScript
+dist/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+.coverage
+htmlcov/
+
+# Testing
+.tox/
+.nox/
+
+# Build
+build/
+*.egg
+
+# Misc
+.envrc
+*.bak
+tmp/
+temp/
