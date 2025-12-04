@@ -1,5 +1,7 @@
 {
   "app": "npx ts-node --prefer-ts-exts bin/cdk-app.ts",
+  "output": "output",
+  "versionReporting": false,
   "watch": {
     "include": ["**"],
     "exclude": [
