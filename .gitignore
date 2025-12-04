@@ -4,6 +4,7 @@ cdk.out/
 !jest.config.js
 *.d.ts
 node_modules/
+output/
 
 # TypeScript
 dist/
@@ -14,7 +15,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
-.env
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
@@ -49,7 +49,6 @@ build/
 *.egg
 
 # Misc
-.envrc
 *.bak
 tmp/
 temp/
