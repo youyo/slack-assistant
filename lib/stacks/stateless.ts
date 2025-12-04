@@ -1,5 +1,4 @@
 import * as cdk from "aws-cdk-lib";
-import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as sfn from "aws-cdk-lib/aws-stepfunctions";
 import * as tasks from "aws-cdk-lib/aws-stepfunctions-tasks";
@@ -41,34 +40,18 @@ export class StatelessStack extends cdk.Stack {
 
     const { envProps } = props;
 
-    // Secrets Manager からシークレットを参照
-    const slackBotTokenSecretArn = ssm.StringParameter.valueForStringParameter(
+    // SSM Parameter Store から値を取得（デプロイ時に解決）
+    const slackBotToken = ssm.StringParameter.valueForStringParameter(
       this,
-      genSsmName("secrets.slackBotToken.arn", envProps)
+      genSsmName("slack-bot-token", envProps)
     );
-    const slackSigningSecretArn = ssm.StringParameter.valueForStringParameter(
+    const slackSigningSecret = ssm.StringParameter.valueForStringParameter(
       this,
-      genSsmName("secrets.slackSigningSecret.arn", envProps)
+      genSsmName("slack-signing-secret", envProps)
     );
-    const slackBotUserIdSecretArn = ssm.StringParameter.valueForStringParameter(
+    const slackBotUserId = ssm.StringParameter.valueForStringParameter(
       this,
-      genSsmName("secrets.slackBotUserId.arn", envProps)
-    );
-
-    const slackBotTokenSecret = secretsmanager.Secret.fromSecretCompleteArn(
-      this,
-      "SlackBotTokenSecret",
-      slackBotTokenSecretArn
-    );
-    const slackSigningSecret = secretsmanager.Secret.fromSecretCompleteArn(
-      this,
-      "SlackSigningSecret",
-      slackSigningSecretArn
-    );
-    const slackBotUserIdSecret = secretsmanager.Secret.fromSecretCompleteArn(
-      this,
-      "SlackBotUserIdSecret",
-      slackBotUserIdSecretArn
+      genSsmName("slack-bot-user-id", envProps)
     );
 
     // Slack Posting Lambda
@@ -80,12 +63,11 @@ export class StatelessStack extends cdk.Stack {
         functionName: "post-to-slack",
         entry: "src/lambda/post-to-slack",
         environment: {
-          SLACK_BOT_TOKEN_SECRET_ARN: slackBotTokenSecretArn,
+          SLACK_BOT_TOKEN: slackBotToken,
         },
         timeout: cdk.Duration.seconds(30),
       }
     );
-    slackBotTokenSecret.grantRead(postToSlackLambda.function);
 
     // Step Functions State Machine
     // Phase 2: ダミー実装（AgentCore 統合前）
@@ -120,14 +102,12 @@ export class StatelessStack extends cdk.Stack {
       functionName: "ingress",
       entry: "src/lambda/ingress",
       environment: {
-        SLACK_SIGNING_SECRET_ARN: slackSigningSecretArn,
-        SLACK_BOT_USER_ID_SECRET_ARN: slackBotUserIdSecretArn,
+        SLACK_SIGNING_SECRET: slackSigningSecret,
+        SLACK_BOT_USER_ID: slackBotUserId,
         STEP_FUNCTION_ARN: this.stateMachine.stateMachineArn,
       },
       timeout: cdk.Duration.seconds(10),
     });
-    slackSigningSecret.grantRead(ingressLambda.function);
-    slackBotUserIdSecret.grantRead(ingressLambda.function);
     this.stateMachine.grantStartExecution(ingressLambda.function);
 
     // API Gateway HTTP API

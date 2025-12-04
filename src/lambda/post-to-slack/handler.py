@@ -11,19 +11,11 @@ import logging
 import os
 from typing import Any
 
-import boto3
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
-
-def get_secret_value(secret_arn: str) -> str:
-    """Secrets Manager からシークレット値を取得"""
-    client = boto3.client("secretsmanager")
-    response = client.get_secret_value(SecretId=secret_arn)
-    return response["SecretString"]
 
 
 def parse_agent_result(agent_result: dict[str, Any] | str) -> dict[str, Any]:
@@ -80,8 +72,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         }
 
     # Slack クライアントを初期化
-    bot_token_secret_arn = os.environ.get("SLACK_BOT_TOKEN_SECRET_ARN", "")
-    bot_token = get_secret_value(bot_token_secret_arn)
+    bot_token = os.environ.get("SLACK_BOT_TOKEN", "")
     slack_client = WebClient(token=bot_token)
 
     try:

@@ -24,13 +24,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def get_secret_value(secret_arn: str) -> str:
-    """Secrets Manager からシークレット値を取得"""
-    client = boto3.client("secretsmanager")
-    response = client.get_secret_value(SecretId=secret_arn)
-    return response["SecretString"]
-
-
 def verify_slack_signature(
     signing_secret: str,
     timestamp: str,
@@ -139,12 +132,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     timestamp = headers.get("x-slack-request-timestamp", "")
     signature = headers.get("x-slack-signature", "")
 
-    # シークレットを取得
-    signing_secret_arn = os.environ.get("SLACK_SIGNING_SECRET_ARN", "")
-    bot_user_id_secret_arn = os.environ.get("SLACK_BOT_USER_ID_SECRET_ARN", "")
-
-    signing_secret = get_secret_value(signing_secret_arn)
-    bot_user_id = get_secret_value(bot_user_id_secret_arn)
+    # 環境変数から直接取得
+    signing_secret = os.environ.get("SLACK_SIGNING_SECRET", "")
+    bot_user_id = os.environ.get("SLACK_BOT_USER_ID", "")
 
     # 署名検証
     if not verify_slack_signature(signing_secret, timestamp, body, signature):
