@@ -72,24 +72,24 @@ CDK_DEFAULT_REGION=ap-northeast-1
 ### 4. Deploy
 
 ```bash
-# Stateful stack (Secrets Manager)
-PRODUCT_ID=slack-assistant STAGE=preview VERSION=v0 npx cdk deploy StatefulStack
+# 1. Parameter Store に認証情報を設定
+aws ssm put-parameter \
+  --name "/slack-assistant/preview/slack-bot-token" \
+  --value "xoxb-your-token" \
+  --type String
 
-# Set secrets manually in AWS Console or CLI
-aws secretsmanager put-secret-value \
-  --secret-id slack-assistant/preview/slack-bot-token \
-  --secret-string "xoxb-your-token"
+aws ssm put-parameter \
+  --name "/slack-assistant/preview/slack-signing-secret" \
+  --value "your-signing-secret" \
+  --type String
 
-aws secretsmanager put-secret-value \
-  --secret-id slack-assistant/preview/slack-signing-secret \
-  --secret-string "your-signing-secret"
+aws ssm put-parameter \
+  --name "/slack-assistant/preview/slack-bot-user-id" \
+  --value "U..." \
+  --type String
 
-aws secretsmanager put-secret-value \
-  --secret-id slack-assistant/preview/slack-bot-user-id \
-  --secret-string "U..."
-
-# Stateless stack (Lambda, API Gateway, Step Functions)
-PRODUCT_ID=slack-assistant STAGE=preview VERSION=v0 npx cdk deploy StatelessStack
+# 2. スタックをデプロイ
+PRODUCT_ID=slack-assistant STAGE=preview VERSION=v0 npx cdk deploy --all
 ```
 
 ### 5. Configure Slack Event Subscriptions
@@ -140,7 +140,7 @@ slack-assistant/
 │   │   ├── lambda.ts
 │   │   └── utility.ts
 │   └── stacks/
-│       ├── stateful.ts      # Secrets Manager
+│       ├── stateful.ts      # AgentCore Memory (future)
 │       └── stateless.ts     # Lambda, API Gateway, Step Functions
 ├── src/
 │   └── lambda/
