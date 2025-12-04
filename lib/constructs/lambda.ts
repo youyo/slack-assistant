@@ -63,6 +63,19 @@ export class LambdaPythonFunction extends Construct {
           "tests",
           "*.md",
         ],
+        commandHooks: {
+          beforeBundling(inputDir: string): string[] {
+            return [
+              "python -m pip install uv -t /tmp/",
+              "/tmp/bin/uv pip compile pyproject.toml -o requirements.txt --no-cache",
+            ];
+          },
+          afterBundling(inputDir: string): string[] {
+            return [
+              "/tmp/bin/uv pip install -r requirements.txt --target /asset-output --no-cache",
+            ];
+          },
+        },
       },
     });
   }
