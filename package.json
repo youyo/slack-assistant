@@ -7,7 +7,7 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "npx cdk",
-	"cdk:bootstrap": "npx cdk bootstrap --all -c stage=${STAGE} -c version=${VERSION}",
+    "cdk:bootstrap": "npx cdk bootstrap --all -c stage=${STAGE} -c version=${VERSION}",
     "cdk:deploy": "npx cdk deploy --all -c stage=${STAGE} -c version=${VERSION} --require-approval never --concurrency 100",
     "cdk:hotswap": "npx cdk deploy --all -c stage=${STAGE} -c version=${VERSION} --require-approval never --concurrency 100 --hotswap",
     "cdk:diff": "npx cdk diff --all -c stage=${STAGE} -c version=${VERSION}",
@@ -34,6 +34,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@aws-cdk/aws-bedrock-agentcore-alpha": "^2.231.0-alpha.0",
     "@aws-cdk/aws-lambda-python-alpha": "^2.201.0-alpha.0",
     "aws-cdk-lib": "^2.201.0",
     "constructs": "^10.4.2",
