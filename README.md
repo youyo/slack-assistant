@@ -71,29 +71,15 @@ sequenceDiagram
 npm install
 ```
 
-### 2. Create Slack App
+### 2. Create Slack App (App Manifest)
+
+App Manifest を使用して Slack App を作成します。
 
 1. https://api.slack.com/apps にアクセス
-2. **Create New App** -> **From scratch** を選択
-3. App 名を入力（例: `slack-assistant`）
-4. Workspace を選択
-
-#### Bot Token Scopes 設定
-
-**OAuth & Permissions** -> **Scopes** -> **Bot Token Scopes** で以下を追加:
-
-| Scope | Description |
-|-------|-------------|
-| `chat:write` | メッセージ投稿 |
-| `app_mentions:read` | メンション読み取り |
-| `channels:history` | パブリックチャンネル履歴 |
-| `groups:history` | プライベートチャンネル履歴 |
-| `im:history` | DM 履歴 |
-| `mpim:history` | グループDM 履歴 |
-
-#### App をワークスペースにインストール
-
-**OAuth & Permissions** -> **Install to Workspace**
+2. **Create New App** -> **From an app manifest** を選択
+3. Workspace を選択
+4. `docs/manifest.json` の内容を貼り付け（JSON/YAML 両対応）
+5. **Create** をクリック
 
 #### 認証情報を取得
 
@@ -142,19 +128,17 @@ aws ssm put-parameter \
 PRODUCT_ID=slack-assistant STAGE=preview VERSION=v0 npx cdk deploy --all
 ```
 
-### 5. Configure Slack Event Subscriptions
+### 5. Update Event Subscriptions URL
 
-1. Slack App 設定画面で **Event Subscriptions** を有効化
-2. **Request URL** に API Gateway エンドポイントを設定:
+デプロイ完了後、API Gateway URL を Slack App に設定:
+
+1. Slack App 設定画面 -> **Event Subscriptions**
+2. **Request URL** を更新:
    ```
    https://<api-id>.execute-api.ap-northeast-1.amazonaws.com/slack/events
    ```
-3. **Subscribe to bot events** で以下を追加:
-   - `message.channels`
-   - `message.groups`
-   - `message.im`
-   - `message.mpim`
-   - `app_mention`
+
+※ Subscribe events は Manifest で定義済みのため設定不要
 
 ## Development
 
@@ -259,6 +243,7 @@ slack-assistant/
 │           └── pyproject.toml
 ├── test/                       # CDK tests
 ├── docs/                       # Design documents
+│   ├── manifest.json          # Slack App Manifest
 │   ├── slack-strands-agentcore-architecture.md
 │   └── api-specification.md
 └── package.json
