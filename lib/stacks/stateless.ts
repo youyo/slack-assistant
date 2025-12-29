@@ -84,7 +84,7 @@ export class StatelessStack extends cdk.Stack {
         ROUTER_MODEL_ID: "global.amazon.nova-2-lite-v1:0",
         CONVERSATION_MODEL_ID: "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
         // 更新トリガー用タイムスタンプ
-        CONFIG_VERSION: "2025-12-29-v4-fix-simple-reply",
+        CONFIG_VERSION: "2025-12-29-v9-prefilter-short-messages",
       },
     });
 
@@ -101,6 +101,24 @@ export class StatelessStack extends cdk.Stack {
           // Foundation Model（SDKが内部で使用する場合）
           "arn:aws:bedrock:*::foundation-model/amazon.nova-2-lite-v1:0",
           "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-5-*",
+        ],
+      })
+    );
+
+    // AgentCore Memory へのアクセス権限を付与
+    agentRuntime.grantPrincipal.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "bedrock-agentcore:ListEvents",
+          "bedrock-agentcore:CreateEvent",
+          "bedrock-agentcore:GetEvent",
+          "bedrock-agentcore:ListSessions",
+          "bedrock-agentcore:CreateSession",
+          "bedrock-agentcore:GetSession",
+          "bedrock-agentcore:RetrieveMemoryRecords",
+        ],
+        resources: [
+          `arn:aws:bedrock-agentcore:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:memory/*`,
         ],
       })
     );

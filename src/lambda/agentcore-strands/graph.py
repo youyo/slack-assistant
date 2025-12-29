@@ -1,10 +1,11 @@
-"""Strands Graph for the Slack x Strands x AgentCore bot.
+"""Manual Orchestration for the Slack x Strands x AgentCore bot.
 
-This module builds a Graph with two main nodes:
+This module provides simple if/else orchestration instead of Graph:
 1. Router Agent - decides whether to reply and how
-2. Conversation Agent - generates the actual reply
+2. Conversation Agent - generates the actual reply (only if needed)
 
-The Graph uses conditional edges to route based on the Router's decision.
+Note: Strands Graph does not support session_manager on agent nodes yet,
+so we use manual orchestration to enable Memory functionality.
 """
 
 import logging
@@ -13,8 +14,6 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 from strands import Agent
-from strands.multiagent import GraphBuilder
-from strands.multiagent.base import Status
 
 from agents import ROUTER_SYSTEM_PROMPT, CONVERSATION_SYSTEM_PROMPT
 
@@ -65,134 +64,92 @@ class ConversationResponse(BaseModel):
     )
 
 
-def _get_router_structured_output(state: Any) -> Optional[RouterResponse]:
-    """Get the Router agent's structured output from state."""
-    router_node = state.results.get("router")
-    if not router_node or not router_node.result:
+def _create_session_manager(
+    memory_id: Optional[str],
+    session_id: Optional[str],
+    actor_id: Optional[str],
+) -> Optional[Any]:
+    """Create AgentCoreMemorySessionManager if memory_id is available.
+
+    Args:
+        memory_id: AgentCore Memory ID
+        session_id: Session ID (e.g., thread timestamp with underscores)
+        actor_id: Actor ID (e.g., channel ID)
+
+    Returns:
+        AgentCoreMemorySessionManager instance or None
+    """
+    if not memory_id:
+        logger.info("No memory_id provided, memory disabled")
         return None
 
-    # Access structured_output from the result
-    if hasattr(router_node.result, "structured_output"):
-        return router_node.result.structured_output
-    return None
+    try:
+        from bedrock_agentcore.memory.integrations.strands.config import (
+            AgentCoreMemoryConfig,
+            RetrievalConfig,
+        )
+        from bedrock_agentcore.memory.integrations.strands.session_manager import (
+            AgentCoreMemorySessionManager,
+        )
+
+        memory_config = AgentCoreMemoryConfig(
+            memory_id=memory_id,
+            session_id=session_id or "default_session",
+            actor_id=actor_id or "default_actor",
+            retrieval_config={
+                "/preferences/{actorId}": RetrievalConfig(
+                    top_k=5, relevance_score=0.7
+                ),
+                "/facts/{actorId}": RetrievalConfig(
+                    top_k=10, relevance_score=0.3
+                ),
+                "/summaries/{actorId}/{sessionId}": RetrievalConfig(
+                    top_k=3, relevance_score=0.5
+                ),
+            },
+        )
+        session_manager = AgentCoreMemorySessionManager(
+            agentcore_memory_config=memory_config,
+            region_name=os.environ.get("AWS_REGION", "ap-northeast-1"),
+        )
+        logger.info(
+            "Created AgentCoreMemorySessionManager: memory_id=%s, session_id=%s, actor_id=%s",
+            memory_id,
+            session_id,
+            actor_id,
+        )
+        return session_manager
+    except ImportError:
+        logger.warning("bedrock_agentcore not available, memory disabled")
+        return None
+    except Exception as e:
+        logger.warning("Failed to create session manager: %s", e)
+        return None
 
 
-def _needs_reply(state: Any) -> bool:
-    """Condition: route to Conversation Agent if reply is needed."""
-    router_output = _get_router_structured_output(state)
-    if router_output is None:
-        logger.warning("No structured output from router")
-        return False
-
-    if router_output.should_reply and router_output.route in ["simple_reply", "full_reply"]:
-        logger.info("Routing to conversation agent: %s requested", router_output.route)
-        return True
-    return False
-
-
-def build_slack_graph(
-    session_manager: Optional[Any] = None,
+def run_orchestration(
+    user_message: str,
     memory_id: Optional[str] = None,
     session_id: Optional[str] = None,
     actor_id: Optional[str] = None,
-) -> Any:
-    """Build a Strands Graph for Slack Bot.
+) -> dict:
+    """Run the 2-agent orchestration manually.
+
+    Flow:
+    0. Pre-filter short messages without mention
+    1. Call Router Agent (no session_manager) to decide action
+    2. If ignore -> return Router's decision
+    3. If reply needed -> call Conversation Agent (with session_manager)
+    4. Return final result
 
     Args:
-        session_manager: Optional AgentCoreMemorySessionManager instance.
-                         If not provided, memory will not be used.
-        memory_id: Memory ID (used only if session_manager is not provided)
-        session_id: Session ID (used only if session_manager is not provided)
-        actor_id: Actor ID (used only if session_manager is not provided)
+        user_message: The user's input message with context
+        memory_id: AgentCore Memory ID for session management
+        session_id: Session ID (e.g., thread timestamp with underscores)
+        actor_id: Actor ID (e.g., channel ID)
 
     Returns:
-        A compiled Strands Graph ready for execution.
-    """
-    # Create Session Manager if not provided but memory_id is available
-    if session_manager is None and memory_id:
-        try:
-            from bedrock_agentcore.memory.integrations.strands.config import (
-                AgentCoreMemoryConfig,
-                RetrievalConfig,
-            )
-            from bedrock_agentcore.memory.integrations.strands.session_manager import (
-                AgentCoreMemorySessionManager,
-            )
-
-            memory_config = AgentCoreMemoryConfig(
-                memory_id=memory_id,
-                session_id=session_id or "default_session",
-                actor_id=actor_id or "default_actor",
-                retrieval_config={
-                    "/preferences/{actorId}": RetrievalConfig(
-                        top_k=5, relevance_score=0.7
-                    ),
-                    "/facts/{actorId}": RetrievalConfig(
-                        top_k=10, relevance_score=0.3
-                    ),
-                    "/summaries/{actorId}/{sessionId}": RetrievalConfig(
-                        top_k=3, relevance_score=0.5
-                    ),
-                },
-            )
-            session_manager = AgentCoreMemorySessionManager(
-                agentcore_memory_config=memory_config,
-                region_name=os.environ.get("AWS_REGION", "ap-northeast-1"),
-            )
-            logger.info("Created AgentCoreMemorySessionManager with memory_id=%s", memory_id)
-        except ImportError:
-            logger.warning("bedrock_agentcore not available, memory disabled")
-            session_manager = None
-        except Exception as e:
-            logger.warning("Failed to create session manager: %s", e)
-            session_manager = None
-
-    # Create Router Agent (lightweight model with structured output)
-    router = Agent(
-        name="router",
-        system_prompt=ROUTER_SYSTEM_PROMPT,
-        model=ROUTER_MODEL_ID,
-        structured_output_model=RouterResponse,
-    )
-
-    # Create Conversation Agent (high-performance model with structured output and memory)
-    conversation = Agent(
-        name="conversation",
-        system_prompt=CONVERSATION_SYSTEM_PROMPT,
-        model=CONVERSATION_MODEL_ID,
-        session_manager=session_manager,
-        structured_output_model=ConversationResponse,
-    )
-
-    # Build the Graph
-    builder = GraphBuilder()
-    builder.add_node(router, "router")
-    builder.add_node(conversation, "conversation")
-
-    # Router -> Conversation (conditional: if reply is needed)
-    builder.add_edge("router", "conversation", condition=_needs_reply)
-
-    # Set entry point
-    builder.set_entry_point("router")
-
-    # Set execution limits
-    builder.set_execution_timeout(60)  # 60 seconds timeout
-
-    return builder.build()
-
-
-def extract_final_result(graph_result: Any) -> dict:
-    """Extract the final result from Graph execution.
-
-    The result could come from either:
-    - Router (if simple_reply or ignore)
-    - Conversation (if full_reply)
-
-    Args:
-        graph_result: The result from graph execution
-
-    Returns:
-        A dict with should_reply, route, reply_mode, typing_style, reply_text, reason
+        dict with should_reply, route, reply_mode, typing_style, reply_text, reason
     """
     default_result = {
         "should_reply": False,
@@ -200,34 +157,131 @@ def extract_final_result(graph_result: Any) -> dict:
         "reply_mode": "thread",
         "typing_style": "none",
         "reply_text": "",
-        "reason": "No result from graph",
+        "reason": "Error during orchestration",
     }
 
-    if not graph_result or graph_result.status != Status.COMPLETED:
-        logger.warning("Graph execution did not complete successfully: status=%s",
-                       getattr(graph_result, 'status', None))
+    # ========================================
+    # Step 0: Pre-filter short messages
+    # ========================================
+    # Extract just the user text (before "Slack context:")
+    text_only = user_message.split("\n\nSlack context:")[0].replace("User message: ", "").strip()
+
+    # Check if mentioned (from context)
+    is_mentioned = "is_mentioned: True" in user_message
+
+    # Short messages (1-3 chars) without mention → immediate ignore
+    # This avoids Router Agent timeout due to structured output validation failures
+    if len(text_only) <= 3 and not is_mentioned:
+        logger.info(
+            "Pre-filter: Short message (%d chars) without mention, skipping Router",
+            len(text_only),
+        )
+        return {
+            "should_reply": False,
+            "route": "ignore",
+            "reply_mode": "thread",
+            "typing_style": "none",
+            "reply_text": "",
+            "reason": "短いメッセージのため自動スキップ",
+        }
+
+    # ========================================
+    # Step 1: Call Router Agent
+    # ========================================
+    try:
+        logger.info("Step 1: Calling Router Agent...")
+        router = Agent(
+            name="router",
+            system_prompt=ROUTER_SYSTEM_PROMPT,
+            model=ROUTER_MODEL_ID,
+            structured_output_model=RouterResponse,
+            callback_handler=None,
+        )
+
+        router_result = router(user_message)
+
+        # Get structured output
+        if not hasattr(router_result, "structured_output") or router_result.structured_output is None:
+            logger.error("Router Agent did not return structured output")
+            default_result["reason"] = "Router failed to return structured output"
+            return default_result
+
+        router_output: RouterResponse = router_result.structured_output
+        logger.info(
+            "Router decision: should_reply=%s, route=%s, reason=%s",
+            router_output.should_reply,
+            router_output.route,
+            router_output.reason,
+        )
+
+    except Exception as e:
+        logger.error("Router Agent failed: %s", e, exc_info=True)
+        default_result["reason"] = f"Router Agent error: {str(e)}"
         return default_result
 
-    # Check Conversation Agent result first (higher priority)
-    if "conversation" in graph_result.results:
-        conv_result = graph_result.results["conversation"]
-        if conv_result.result and hasattr(conv_result.result, "structured_output"):
-            structured_output = conv_result.result.structured_output
-            if structured_output:
-                logger.info("Using conversation structured output")
-                return structured_output.model_dump()
+    # ========================================
+    # Step 2: Check Router's decision
+    # ========================================
+    if not router_output.should_reply or router_output.route == "ignore":
+        logger.info("Router decided to ignore, returning early")
+        return {
+            "should_reply": router_output.should_reply,
+            "route": router_output.route,
+            "reply_mode": router_output.reply_mode,
+            "typing_style": router_output.typing_style,
+            "reply_text": "",
+            "reason": router_output.reason,
+        }
 
-    # Fall back to Router Agent result
-    if "router" in graph_result.results:
-        router_result = graph_result.results["router"]
-        if router_result.result and hasattr(router_result.result, "structured_output"):
-            structured_output = router_result.result.structured_output
-            if structured_output:
-                logger.info("Using router structured output")
-                result = structured_output.model_dump()
-                # Router doesn't provide reply_text, add default
-                if "reply_text" not in result:
-                    result["reply_text"] = ""
-                return result
+    # ========================================
+    # Step 3: Call Conversation Agent (with Memory)
+    # ========================================
+    try:
+        logger.info("Step 3: Calling Conversation Agent (route=%s)...", router_output.route)
 
-    return default_result
+        # Create session manager for memory
+        session_manager = _create_session_manager(memory_id, session_id, actor_id)
+
+        conversation = Agent(
+            name="conversation",
+            system_prompt=CONVERSATION_SYSTEM_PROMPT,
+            model=CONVERSATION_MODEL_ID,
+            session_manager=session_manager,
+            structured_output_model=ConversationResponse,
+            callback_handler=None,
+        )
+
+        conversation_result = conversation(user_message)
+
+        # Get structured output
+        if not hasattr(conversation_result, "structured_output") or conversation_result.structured_output is None:
+            logger.error("Conversation Agent did not return structured output")
+            # Fall back to router's decision
+            return {
+                "should_reply": router_output.should_reply,
+                "route": router_output.route,
+                "reply_mode": router_output.reply_mode,
+                "typing_style": router_output.typing_style,
+                "reply_text": "",
+                "reason": "Conversation failed to return structured output",
+            }
+
+        conversation_output: ConversationResponse = conversation_result.structured_output
+        logger.info(
+            "Conversation completed: reply_text_length=%d",
+            len(conversation_output.reply_text),
+        )
+
+        return conversation_output.model_dump()
+
+    except Exception as e:
+        logger.error("Conversation Agent failed: %s", e, exc_info=True)
+        # Fall back to router's decision with error reason
+        return {
+            "should_reply": router_output.should_reply,
+            "route": router_output.route,
+            "reply_mode": router_output.reply_mode,
+            "typing_style": router_output.typing_style,
+            "reply_text": "",
+            "reason": f"Conversation Agent error: {str(e)}",
+        }

@@ -6,18 +6,16 @@ InvokeAgentRuntime API from Step Functions.
 This handler:
 1. Parses the prompt and metadata from the payload
 2. Derives actor_id (channel_id) and session_id (thread_ts)
-3. Builds and executes the Strands Graph
+3. Runs the 2-agent orchestration (Router -> Conversation)
 4. Returns the final JSON result for the Slack Posting Lambda
 """
 
-import json
 import logging
 import os
-from typing import Any
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-from graph import build_slack_graph, extract_final_result
+from graph import run_orchestration
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,14 +34,21 @@ def _derive_ids_from_metadata(metadata: dict) -> dict:
 
     - actor_id: channel_id (used for channel-level memory)
     - session_id: thread_ts or ts (used for thread-level memory)
+
+    Note: sessionId must match pattern [a-zA-Z0-9][a-zA-Z0-9-_]*
+    Slack timestamps contain dots (e.g., "1766995363.547589") which are invalid,
+    so we replace them with underscores.
     """
     slack_meta = metadata.get("slack", {})
     channel_id = slack_meta.get("channel_id", "unknown")
     thread_ts = slack_meta.get("thread_ts") or slack_meta.get("ts", "session")
 
+    # Replace dots with underscores to satisfy AgentCore Memory API constraints
+    session_id = thread_ts.replace(".", "_")
+
     return {
         "actor_id": channel_id,
-        "session_id": thread_ts,
+        "session_id": session_id,
     }
 
 
@@ -117,24 +122,20 @@ def invoke(payload: dict) -> dict:
     )
 
     try:
-        # Build the Graph with memory (if available)
-        graph = build_slack_graph(
+        # Build user message with context
+        user_message = _build_user_message(prompt, metadata)
+
+        # Run the 2-agent orchestration (Router -> Conversation)
+        logger.info("Running orchestration...")
+        final_result = run_orchestration(
+            user_message=user_message,
             memory_id=AGENTCORE_MEMORY_ID if AGENTCORE_MEMORY_ID else None,
             session_id=session_id,
             actor_id=actor_id,
         )
 
-        # Build user message with context
-        user_message = _build_user_message(prompt, metadata)
-
-        # Execute the Graph
-        logger.info("Executing Strands Graph...")
-        result = graph(user_message)
-
-        # Extract final result
-        final_result = extract_final_result(result)
         logger.info(
-            "Graph execution completed: should_reply=%s, route=%s",
+            "Orchestration completed: should_reply=%s, route=%s",
             final_result.get("should_reply"),
             final_result.get("route"),
         )
@@ -142,7 +143,7 @@ def invoke(payload: dict) -> dict:
         return final_result
 
     except Exception as e:
-        logger.error("Error executing graph: %s", str(e), exc_info=True)
+        logger.error("Error during orchestration: %s", str(e), exc_info=True)
         return {
             "should_reply": False,
             "route": "ignore",
