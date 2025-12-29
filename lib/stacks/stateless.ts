@@ -80,19 +80,27 @@ export class StatelessStack extends cdk.Stack {
       environmentVariables: {
         AGENTCORE_MEMORY_ID: agentcoreMemoryId,
         AWS_REGION: cdk.Stack.of(this).region,
-        // モデル ID（環境変数でオーバーライド可能）
-        ROUTER_MODEL_ID: "amazon.nova-micro-v1:0",
-        CONVERSATION_MODEL_ID: "us.anthropic.claude-sonnet-4-5-20250514-v1:0",
+        // モデル ID（Global Inference Profile形式）
+        ROUTER_MODEL_ID: "global.amazon.nova-2-lite-v1:0",
+        CONVERSATION_MODEL_ID: "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        // 更新トリガー用タイムスタンプ
+        CONFIG_VERSION: "2025-12-29-v4-fix-simple-reply",
       },
     });
 
     // AgentCore Runtime に Bedrock モデル呼び出し権限を付与
+    // Global Inference Profile と foundation-model の両方を許可
+    // （Strands SDKが内部でfoundation-modelとして呼び出す場合があるため）
     agentRuntime.grantPrincipal.addToPrincipalPolicy(
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
         resources: [
-          `arn:aws:bedrock:${cdk.Stack.of(this).region}::foundation-model/amazon.nova-micro-v1:0`,
-          `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-5-20250514-v1:0`,
+          // Global Inference Profile
+          "arn:aws:bedrock:*:*:inference-profile/global.amazon.nova-2-lite-v1:0",
+          "arn:aws:bedrock:*:*:inference-profile/global.anthropic.claude-sonnet-4-5-*",
+          // Foundation Model（SDKが内部で使用する場合）
+          "arn:aws:bedrock:*::foundation-model/amazon.nova-2-lite-v1:0",
+          "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-5-*",
         ],
       })
     );
@@ -133,12 +141,7 @@ export class StatelessStack extends cdk.Stack {
     );
 
     // AgentCore Runtime呼び出し権限を付与
-    invokeAgentCoreLambda.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ["bedrock-agentcore:InvokeAgentRuntime"],
-        resources: [agentRuntime.agentRuntimeArn],
-      })
-    );
+    agentRuntime.grantInvokeRuntime(invokeAgentCoreLambda.function);
 
     // Step Functions タスク
     const invokeAgentTask = new tasks.LambdaInvoke(this, "InvokeAgent", {
