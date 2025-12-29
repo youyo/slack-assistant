@@ -62,11 +62,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         },
     }
 
+    # セッションIDを構築（最小33文字が必要）
+    session_id = f"{event.get('team_id', 'default')}-{event.get('channel_id', 'channel')}-{event.get('thread_ts', 'session')}"
+
     try:
         # AgentCore Runtime呼び出し
         response = client.invoke_agent_runtime(
             agentRuntimeArn=agent_runtime_arn,
-            runtimeSessionId=event.get("thread_ts", "default-session"),
+            runtimeSessionId=session_id,
             payload=json.dumps(payload).encode(),
         )
 
