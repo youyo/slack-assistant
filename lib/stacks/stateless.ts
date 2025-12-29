@@ -3,6 +3,9 @@ import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as sfn from "aws-cdk-lib/aws-stepfunctions";
 import * as tasks from "aws-cdk-lib/aws-stepfunctions-tasks";
 import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as agentcore from "@aws-cdk/aws-bedrock-agentcore-alpha";
+import * as path from "path";
 import { Construct } from "constructs";
 import {
   EnvProps,
@@ -54,6 +57,46 @@ export class StatelessStack extends cdk.Stack {
       genSsmName("slack-bot-user-id", envProps)
     );
 
+    // AgentCore Memory ID（Stateful スタックで作成）
+    const agentcoreMemoryId = ssm.StringParameter.valueForStringParameter(
+      this,
+      genSsmName("agentcore-memory-id", envProps)
+    );
+
+    // ========================================
+    // AgentCore Runtime
+    // ========================================
+    // Strands Graph を使用した AI エージェント
+    const agentRuntimeArtifact = agentcore.AgentRuntimeArtifact.fromAsset(
+      path.join(__dirname, "../../src/lambda/agentcore-strands")
+    );
+
+    const agentRuntime = new agentcore.Runtime(this, "SlackBotAgentRuntime", {
+      runtimeName: genResourceName("slack_bot_agent", envProps).replace(
+        /-/g,
+        "_"
+      ),
+      agentRuntimeArtifact,
+      environmentVariables: {
+        AGENTCORE_MEMORY_ID: agentcoreMemoryId,
+        AWS_REGION: cdk.Stack.of(this).region,
+        // モデル ID（環境変数でオーバーライド可能）
+        ROUTER_MODEL_ID: "amazon.nova-micro-v1:0",
+        CONVERSATION_MODEL_ID: "us.anthropic.claude-sonnet-4-5-20250514-v1:0",
+      },
+    });
+
+    // AgentCore Runtime に Bedrock モデル呼び出し権限を付与
+    agentRuntime.grantPrincipal.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+        resources: [
+          `arn:aws:bedrock:${cdk.Stack.of(this).region}::foundation-model/amazon.nova-micro-v1:0`,
+          `arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-5-20250514-v1:0`,
+        ],
+      })
+    );
+
     // Slack Posting Lambda
     const postToSlackLambda = new LambdaPythonFunction(
       this,
@@ -69,18 +112,38 @@ export class StatelessStack extends cdk.Stack {
       }
     );
 
+    // ========================================
     // Step Functions State Machine
-    // Phase 2: ダミー実装（AgentCore 統合前）
-    const invokeAgentDummy = new sfn.Pass(this, "InvokeAgentDummy", {
-      result: sfn.Result.fromObject({
-        should_reply: true,
-        route: "full_reply",
-        reply_mode: "thread",
-        typing_style: "short",
-        reply_text: "(dummy) メッセージを受け取りました",
-        reason: "ダミー応答",
-      }),
-      resultPath: "$.agentResult",
+    // ========================================
+    // AgentCore Invoker Lambda
+    // Note: Step Functions SDK統合がbedrockagentcoreruntimeを
+    // サポートしていないため、Lambda経由で呼び出す
+    const invokeAgentCoreLambda = new LambdaPythonFunction(
+      this,
+      "InvokeAgentCoreLambda",
+      {
+        envProps,
+        functionName: "invoke-agentcore",
+        entry: "src/lambda/invoke-agentcore",
+        environment: {
+          AGENT_RUNTIME_ARN: agentRuntime.agentRuntimeArn,
+        },
+        timeout: cdk.Duration.seconds(120),
+      }
+    );
+
+    // AgentCore Runtime呼び出し権限を付与
+    invokeAgentCoreLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock-agentcore:InvokeAgentRuntime"],
+        resources: [agentRuntime.agentRuntimeArn],
+      })
+    );
+
+    // Step Functions タスク
+    const invokeAgentTask = new tasks.LambdaInvoke(this, "InvokeAgent", {
+      lambdaFunction: invokeAgentCoreLambda.function,
+      payloadResponseOnly: true,
     });
 
     const postToSlackTask = new tasks.LambdaInvoke(this, "PostToSlack", {
@@ -91,7 +154,7 @@ export class StatelessStack extends cdk.Stack {
     this.stateMachine = new sfn.StateMachine(this, "SlackBotStateMachine", {
       stateMachineName: genResourceName("slack-bot", envProps),
       definitionBody: sfn.DefinitionBody.fromChainable(
-        invokeAgentDummy.next(postToSlackTask)
+        invokeAgentTask.next(postToSlackTask)
       ),
       tracingEnabled: true,
     });
@@ -132,6 +195,11 @@ export class StatelessStack extends cdk.Stack {
     new cdk.CfnOutput(this, "StateMachineArn", {
       value: this.stateMachine.stateMachineArn,
       description: "Step Functions State Machine ARN",
+    });
+
+    new cdk.CfnOutput(this, "AgentRuntimeArn", {
+      value: agentRuntime.agentRuntimeArn,
+      description: "AgentCore Runtime ARN",
     });
   }
 }
