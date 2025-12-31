@@ -1,7 +1,6 @@
 {
   "name": "slack-assistant",
-  "license": "UNLICENSED",
-  "private": true,
+  "license": "MIT",
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
