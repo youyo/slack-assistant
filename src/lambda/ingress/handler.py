@@ -132,9 +132,11 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     timestamp = headers.get("x-slack-request-timestamp", "")
     signature = headers.get("x-slack-signature", "")
 
-    # 環境変数から直接取得
-    signing_secret = os.environ.get("SLACK_SIGNING_SECRET", "")
-    bot_user_id = os.environ.get("SLACK_BOT_USER_ID", "")
+    # SSM Parameter Store から動的に取得
+    from ssm_params import get_slack_bot_user_id, get_slack_signing_secret
+
+    signing_secret = get_slack_signing_secret()
+    bot_user_id = get_slack_bot_user_id()
 
     # 署名検証
     if not verify_slack_signature(signing_secret, timestamp, body, signature):

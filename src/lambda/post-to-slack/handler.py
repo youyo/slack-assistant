@@ -71,8 +71,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "body": json.dumps({"posted": False, "reason": "empty reply_text"}),
         }
 
-    # Slack クライアントを初期化
-    bot_token = os.environ.get("SLACK_BOT_TOKEN", "")
+    # Slack クライアントを初期化（SSM から動的に取得）
+    from ssm_params import get_slack_bot_token
+
+    bot_token = get_slack_bot_token()
     slack_client = WebClient(token=bot_token)
 
     try:
