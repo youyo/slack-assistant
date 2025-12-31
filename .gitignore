@@ -55,3 +55,7 @@ temp/
 
 # Serena
 .serena/
+
+# Claude Code
+.claude/settings.local.json
+.claude/state/
