@@ -59,3 +59,4 @@ temp/
 # Claude Code
 .claude/settings.local.json
 .claude/state/
+.claude/memory/
