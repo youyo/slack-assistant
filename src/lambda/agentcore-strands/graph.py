@@ -12,7 +12,7 @@ import logging
 import os
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from strands import Agent
 
 from agents import ROUTER_SYSTEM_PROMPT, CONVERSATION_SYSTEM_PROMPT
@@ -44,6 +44,15 @@ class RouterResponse(BaseModel):
     )
     reason: str = Field(description="Short explanation in Japanese for the decision")
 
+    @field_validator("typing_style", mode="before")
+    @classmethod
+    def normalize_typing_style(cls, v: Any) -> str:
+        """Normalize typing_style to valid values."""
+        valid_values = {"none", "short", "long"}
+        if v in valid_values:
+            return v
+        return "none"
+
 
 class ConversationResponse(BaseModel):
     """Conversation agent's structured response."""
@@ -62,6 +71,15 @@ class ConversationResponse(BaseModel):
     reason: str = Field(
         default="Full reply generated", description="Short explanation for the reply"
     )
+
+    @field_validator("typing_style", mode="before")
+    @classmethod
+    def normalize_typing_style(cls, v: Any) -> str:
+        """Normalize typing_style to valid values."""
+        valid_values = {"none", "short", "long"}
+        if v in valid_values:
+            return v
+        return "none"
 
 
 def _create_session_manager(
