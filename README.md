@@ -120,13 +120,9 @@ aws ssm put-parameter \
   --name "/${PRODUCT_ID}/${STAGE}/slack-signing-secret" \
   --value "your-signing-secret" \
   --type String
-
-# Bot User ID はダミー値で設定（後で更新）
-aws ssm put-parameter \
-  --name "/${PRODUCT_ID}/${STAGE}/slack-bot-user-id" \
-  --value "UXXXXXXXXXX" \
-  --type String
 ```
+
+> **Note**: Bot User ID は Step 4 で設定します。
 
 #### Step 2: スタックをデプロイ
 
@@ -147,7 +143,7 @@ PRODUCT_ID=slack-assistant STAGE=preview VERSION=v0 npx cdk deploy --all
 
 ※ Subscribe events は Manifest で定義済みのため設定不要
 
-#### Step 4: Bot User ID を取得・更新
+#### Step 4: Bot User ID を取得・設定
 
 Event Subscriptions URL の検証が完了したら、Bot User ID を取得:
 
@@ -159,17 +155,16 @@ curl -X POST https://slack.com/api/auth.test \
 # レスポンス例: {"ok":true,"user_id":"U0123456789",...}
 ```
 
-取得した `user_id` で SSM パラメータを更新:
+取得した `user_id` で SSM パラメータを設定:
 
 ```bash
 aws ssm put-parameter \
   --name "/${PRODUCT_ID}/${STAGE}/slack-bot-user-id" \
   --value "U0123456789" \
-  --type String \
-  --overwrite
+  --type String
 ```
 
-> **Note**: Bot User ID が正しく設定されていないと、ボットが自分自身のメッセージに反応してしまいます。
+> **Note**: Lambda は SSM Parameter Store から動的にパラメータを取得するため、設定後すぐに反映されます。再デプロイは不要です。
 
 ## Development
 
