@@ -43,20 +43,6 @@ export class StatelessStack extends cdk.Stack {
 
     const { envProps } = props;
 
-    // SSM Parameter Store から値を取得（デプロイ時に解決）
-    const slackBotToken = ssm.StringParameter.valueForStringParameter(
-      this,
-      genSsmName("slack-bot-token", envProps)
-    );
-    const slackSigningSecret = ssm.StringParameter.valueForStringParameter(
-      this,
-      genSsmName("slack-signing-secret", envProps)
-    );
-    const slackBotUserId = ssm.StringParameter.valueForStringParameter(
-      this,
-      genSsmName("slack-bot-user-id", envProps)
-    );
-
     // AgentCore Memory ID（Stateful スタックで作成）
     const agentcoreMemoryId = ssm.StringParameter.valueForStringParameter(
       this,
@@ -132,10 +118,21 @@ export class StatelessStack extends cdk.Stack {
         functionName: "post-to-slack",
         entry: "src/lambda/post-to-slack",
         environment: {
-          SLACK_BOT_TOKEN: slackBotToken,
+          // SSM パラメータ名を渡す（Lambda実行時に動的取得）
+          SSM_SLACK_BOT_TOKEN: genSsmName("slack-bot-token", envProps),
         },
         timeout: cdk.Duration.seconds(30),
       }
+    );
+
+    // SSM Parameter Store 読み取り権限
+    postToSlackLambda.function.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          `arn:aws:ssm:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:parameter${genSsmName("slack-bot-token", envProps)}`,
+        ],
+      })
     );
 
     // ========================================
@@ -186,13 +183,25 @@ export class StatelessStack extends cdk.Stack {
       functionName: "ingress",
       entry: "src/lambda/ingress",
       environment: {
-        SLACK_SIGNING_SECRET: slackSigningSecret,
-        SLACK_BOT_USER_ID: slackBotUserId,
+        // SSM パラメータ名を渡す（Lambda実行時に動的取得）
+        SSM_SLACK_SIGNING_SECRET: genSsmName("slack-signing-secret", envProps),
+        SSM_SLACK_BOT_USER_ID: genSsmName("slack-bot-user-id", envProps),
         STEP_FUNCTION_ARN: this.stateMachine.stateMachineArn,
       },
       timeout: cdk.Duration.seconds(10),
     });
     this.stateMachine.grantStartExecution(ingressLambda.function);
+
+    // SSM Parameter Store 読み取り権限
+    ingressLambda.function.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          `arn:aws:ssm:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:parameter${genSsmName("slack-signing-secret", envProps)}`,
+          `arn:aws:ssm:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:parameter${genSsmName("slack-bot-user-id", envProps)}`,
+        ],
+      })
+    );
 
     // API Gateway HTTP API
     this.api = new HttpApi(this, "SlackEventsApi", {
