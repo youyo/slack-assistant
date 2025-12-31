@@ -85,9 +85,9 @@ App Manifest を使用して Slack App を作成します。
 
 | 項目 | 場所 | 形式 |
 |------|------|------|
-| Bot User OAuth Token | OAuth & Permissions | `xoxb-...` |
-| Signing Secret | Basic Information -> App Credentials | 文字列 |
-| Bot User ID | OAuth & Permissions (Bot User 欄) | `U...` |
+| Bot User OAuth Token | OAuth & Permissions → Install to Workspace | `xoxb-...` |
+| Signing Secret | Basic Information → App Credentials | 文字列 |
+| Bot User ID | デプロイ後に `auth.test` API で取得（後述） | `U...` |
 
 ### 3. Configure Environment
 
@@ -107,38 +107,69 @@ CDK_DEFAULT_REGION=ap-northeast-1
 
 ### 4. Deploy
 
+#### Step 1: Parameter Store に認証情報を設定
+
 ```bash
-# 1. Parameter Store に認証情報を設定
+# Bot Token と Signing Secret を設定
 aws ssm put-parameter \
-  --name "/slack-assistant/preview/slack-bot-token" \
+  --name "/${PRODUCT_ID}/${STAGE}/slack-bot-token" \
   --value "xoxb-your-token" \
   --type String
 
 aws ssm put-parameter \
-  --name "/slack-assistant/preview/slack-signing-secret" \
+  --name "/${PRODUCT_ID}/${STAGE}/slack-signing-secret" \
   --value "your-signing-secret" \
   --type String
 
+# Bot User ID はダミー値で設定（後で更新）
 aws ssm put-parameter \
-  --name "/slack-assistant/preview/slack-bot-user-id" \
-  --value "U..." \
+  --name "/${PRODUCT_ID}/${STAGE}/slack-bot-user-id" \
+  --value "UXXXXXXXXXX" \
   --type String
+```
 
-# 2. スタックをデプロイ
+#### Step 2: スタックをデプロイ
+
+```bash
 PRODUCT_ID=slack-assistant STAGE=preview VERSION=v0 npx cdk deploy --all
 ```
 
-### 5. Update Event Subscriptions URL
+#### Step 3: Event Subscriptions URL を設定
 
 デプロイ完了後、API Gateway URL を Slack App に設定:
 
-1. Slack App 設定画面 -> **Event Subscriptions**
+1. Slack App 設定画面 → **Event Subscriptions**
 2. **Request URL** を更新:
    ```
    https://<api-id>.execute-api.ap-northeast-1.amazonaws.com/slack/events
    ```
+3. 緑のチェックマークで検証成功を確認
 
 ※ Subscribe events は Manifest で定義済みのため設定不要
+
+#### Step 4: Bot User ID を取得・更新
+
+Event Subscriptions URL の検証が完了したら、Bot User ID を取得:
+
+```bash
+# auth.test API で Bot User ID を取得
+curl -X POST https://slack.com/api/auth.test \
+  -H "Authorization: Bearer xoxb-your-bot-token"
+
+# レスポンス例: {"ok":true,"user_id":"U0123456789",...}
+```
+
+取得した `user_id` で SSM パラメータを更新:
+
+```bash
+aws ssm put-parameter \
+  --name "/${PRODUCT_ID}/${STAGE}/slack-bot-user-id" \
+  --value "U0123456789" \
+  --type String \
+  --overwrite
+```
+
+> **Note**: Bot User ID が正しく設定されていないと、ボットが自分自身のメッセージに反応してしまいます。
 
 ## Development
 
