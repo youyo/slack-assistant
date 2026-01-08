@@ -5,7 +5,6 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "npx cdk",
     "cdk:bootstrap": "npx cdk bootstrap --all -c stage=${STAGE} -c version=${VERSION}",
     "cdk:deploy": "npx cdk deploy --all -c stage=${STAGE} -c version=${VERSION} --require-approval never --concurrency 100",
     "cdk:hotswap": "npx cdk deploy --all -c stage=${STAGE} -c version=${VERSION} --require-approval never --concurrency 100 --hotswap",
@@ -20,24 +19,24 @@
     "lint:fix": "eslint . --ext .ts --fix"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.14",
-    "@types/node": "^22.15.21",
-    "@typescript-eslint/eslint-plugin": "^8.32.1",
-    "@typescript-eslint/parser": "^8.32.1",
-    "aws-cdk": "^2.201.0",
-    "esbuild": "^0.25.4",
-    "eslint": "^9.27.0",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.3.4",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.51.0",
+    "@typescript-eslint/parser": "^8.51.0",
+    "aws-cdk": "^2.1100.1",
+    "esbuild": "^0.27.2",
+    "eslint": "^9.39.2",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@aws-cdk/aws-bedrock-agentcore-alpha": "^2.231.0-alpha.0",
-    "@aws-cdk/aws-lambda-python-alpha": "^2.201.0-alpha.0",
-    "aws-cdk-lib": "^2.201.0",
-    "constructs": "^10.4.2",
-    "dotenv": "^16.5.0",
+    "@aws-cdk/aws-bedrock-agentcore-alpha": "^2.233.0-alpha.0",
+    "@aws-cdk/aws-lambda-python-alpha": "^2.233.0-alpha.0",
+    "aws-cdk-lib": "^2.233.0",
+    "constructs": "^10.4.4",
+    "dotenv": "^17.2.3",
     "source-map-support": "^0.5.21"
   }
 }
