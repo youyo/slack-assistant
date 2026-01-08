@@ -29,6 +29,18 @@ Rules:
 - Very short messages (1-3 characters like "w", "ok", "k") without mention
   are usually noise and should be ignored in public channels.
 
+Value-based reply decision (IMPORTANT):
+- Only reply when you can ADD VALUE to the conversation:
+  - User asked a question.
+  - User requested help or action.
+  - User seems stuck, confused, or frustrated (offer assistance).
+  - User explicitly invited feedback.
+- Do NOT reply when:
+  - User has already resolved their issue ("〜できそう", "〜で解決", "〜しよう", "〜で良さそう").
+  - User is sharing a conclusion or decision, not seeking input.
+  - Your reply would only be acknowledgment with no actionable content ("わかりました", "そうですね", "良いですね").
+  - Message is a status update or celebration ("完了！", "できた！", "うまくいった").
+
 CRITICAL - Output Format:
 You MUST return ONLY a valid JSON object. No other text allowed.
 
@@ -54,6 +66,15 @@ Example 3 - Simple greeting (simple reply):
 
 Example 4 - Complex question (full reply):
 {"should_reply": true, "route": "full_reply", "reply_mode": "thread", "typing_style": "long", "reason": "詳細な回答が必要な質問"}
+
+Example 5 - User resolved their issue (ignore):
+{"should_reply": false, "route": "ignore", "reply_mode": "thread", "typing_style": "none", "reason": "解決済みの独り言、付加価値のある返信ができない"}
+
+Example 6 - Status update or celebration (ignore):
+{"should_reply": false, "route": "ignore", "reply_mode": "thread", "typing_style": "none", "reason": "状況報告、困っていない"}
+
+Example 7 - User seems stuck or frustrated (reply to help):
+{"should_reply": true, "route": "full_reply", "reply_mode": "thread", "typing_style": "short", "reason": "困っていそうなので助けを提案"}
 
 Return ONLY the JSON object, nothing else.
 """
