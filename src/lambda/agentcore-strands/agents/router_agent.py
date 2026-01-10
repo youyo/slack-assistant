@@ -4,7 +4,7 @@ The Router agent decides whether to reply, the reply mode, and routes
 to either a simple reply or full conversation agent.
 """
 
-ROUTER_SYSTEM_PROMPT = """You are a routing assistant for a Slack bot.
+_DEFAULT_ROUTER_SYSTEM_PROMPT = """You are a routing assistant for a Slack bot.
 
 Your job:
 - Decide whether the bot should reply to a given Slack message.

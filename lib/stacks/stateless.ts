@@ -69,8 +69,14 @@ export class StatelessStack extends cdk.Stack {
         // モデル ID（Global Inference Profile形式）
         ROUTER_MODEL_ID: "global.amazon.nova-2-lite-v1:0",
         CONVERSATION_MODEL_ID: "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        // SSM Parameter Store プロンプト設定（オプション）
+        SSM_ROUTER_SYSTEM_PROMPT: genSsmName("router-system-prompt", envProps),
+        SSM_CONVERSATION_SYSTEM_PROMPT: genSsmName(
+          "conversation-system-prompt",
+          envProps
+        ),
         // 更新トリガー用タイムスタンプ
-        CONFIG_VERSION: "2025-12-29-v9-prefilter-short-messages",
+        CONFIG_VERSION: "2025-01-11-v10-ssm-prompts",
       },
     });
 
@@ -105,6 +111,17 @@ export class StatelessStack extends cdk.Stack {
         ],
         resources: [
           `arn:aws:bedrock-agentcore:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:memory/*`,
+        ],
+      })
+    );
+
+    // SSM Parameter Store プロンプト読み取り権限を付与
+    agentRuntime.grantPrincipal.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          `arn:aws:ssm:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:parameter${genSsmName("router-system-prompt", envProps)}`,
+          `arn:aws:ssm:${cdk.Stack.of(this).region}:${cdk.Stack.of(this).account}:parameter${genSsmName("conversation-system-prompt", envProps)}`,
         ],
       })
     );

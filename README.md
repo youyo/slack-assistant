@@ -124,6 +124,36 @@ aws ssm put-parameter \
 
 > **Note**: Bot User ID は Step 4 で設定します。
 
+#### Optional: システムプロンプトをカスタマイズ
+
+デフォルトのシステムプロンプトを SSM Parameter Store で上書きできます（省略可）:
+
+```bash
+# Router Agent のプロンプトをカスタマイズ
+aws ssm put-parameter \
+  --name "/${PRODUCT_ID}/${STAGE}/router-system-prompt" \
+  --value "Your custom router prompt here..." \
+  --type String
+
+# Conversation Agent のプロンプトをカスタマイズ
+aws ssm put-parameter \
+  --name "/${PRODUCT_ID}/${STAGE}/conversation-system-prompt" \
+  --value "Your custom conversation prompt here..." \
+  --type String
+
+# プロンプトを更新する場合は --overwrite を追加
+aws ssm put-parameter \
+  --name "/${PRODUCT_ID}/${STAGE}/router-system-prompt" \
+  --value "Updated prompt..." \
+  --type String \
+  --overwrite
+```
+
+> **Note**:
+> - SSM パラメータが存在しない場合、コード内のデフォルトプロンプトが使用されます。
+> - プロンプトは Lambda 実行時に動的取得され、5分間キャッシュされます。
+> - デフォルトプロンプトは `src/lambda/agentcore-strands/agents/router_agent.py` と `conversation_agent.py` で確認できます。
+
 #### Step 2: スタックをデプロイ
 
 ```bash
@@ -212,12 +242,16 @@ cd src/lambda/agentcore-strands && uv run pytest
 
 ### SSM Parameters
 
-| Parameter Name | Description |
-|----------------|-------------|
-| `/{product_id}/{stage}/slack-bot-token` | Slack Bot OAuth Token (`xoxb-...`) |
-| `/{product_id}/{stage}/slack-signing-secret` | Slack Signing Secret |
-| `/{product_id}/{stage}/slack-bot-user-id` | Slack Bot User ID (`U...`) |
-| `/{product_id}/{stage}/agentcore-memory-id` | AgentCore Memory ID (自動生成) |
+| Parameter Name | Description | Required |
+|----------------|-------------|----------|
+| `/{product_id}/{stage}/slack-bot-token` | Slack Bot OAuth Token (`xoxb-...`) | Yes |
+| `/{product_id}/{stage}/slack-signing-secret` | Slack Signing Secret | Yes |
+| `/{product_id}/{stage}/slack-bot-user-id` | Slack Bot User ID (`U...`) | Yes |
+| `/{product_id}/{stage}/agentcore-memory-id` | AgentCore Memory ID (自動生成) | Yes |
+| `/{product_id}/{stage}/router-system-prompt` | Router Agent システムプロンプト | No |
+| `/{product_id}/{stage}/conversation-system-prompt` | Conversation Agent システムプロンプト | No |
+
+> **Note**: プロンプト用SSMパラメータはオプションです。設定しない場合、`src/lambda/agentcore-strands/agents/` 内のデフォルトプロンプトが使用されます。
 
 ### Environment Variables
 

@@ -4,7 +4,7 @@ This agent generates the actual Slack reply when the Router decides
 that the bot should respond with a full reply.
 """
 
-CONVERSATION_SYSTEM_PROMPT = """You are a helpful Slack assistant for a software engineering team.
+_DEFAULT_CONVERSATION_SYSTEM_PROMPT = """You are a helpful Slack assistant for a software engineering team.
 Your personality is inspired by Baymax - speak in a calm, gentle, and caring tone.
 
 ## Personality
