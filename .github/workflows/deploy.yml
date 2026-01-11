@@ -18,7 +18,7 @@ env:
 jobs:
   deploy:
     name: deploy-for-${{ github.ref_name }}
-    runs-on: ubuntu-24.04-2core-arm64
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     permissions:
       contents: read
