@@ -9,34 +9,16 @@ import { StatelessStack } from "../lib/stacks/stateless";
 // 環境変数を読み込み
 dotenv.config();
 
-/**
- * 必須環境変数を取得
- */
-function getRequiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`必須環境変数 ${name} が設定されていません`);
-  }
-  return value;
-}
-
-/**
- * 環境変数から EnvProps を生成
- */
-function getEnvProps(): EnvProps {
-  return {
-    product_id: getRequiredEnv("PRODUCT_ID"),
-    layer: "infra",
-    stage: getRequiredEnv("STAGE"),
-    version: getRequiredEnv("VERSION"),
-  };
-}
-
 // CDK アプリケーション
 const app = new cdk.App();
 
-// 環境プロパティ
-const envProps = getEnvProps();
+// 環境プロパティ（.envからPRODUCT_ID、コンテキストからstage/version）
+const envProps: EnvProps = {
+  product_id: process.env.PRODUCT_ID as string,
+  layer: "infra",
+  stage: app.node.tryGetContext("stage"),
+  version: app.node.tryGetContext("version"),
+};
 
 // AWS 環境設定
 const env: cdk.Environment = {
