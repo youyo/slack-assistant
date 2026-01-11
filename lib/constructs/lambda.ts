@@ -46,6 +46,7 @@ export class LambdaPythonFunction extends Construct {
     this.function = new lambdaPython.PythonFunction(this, "Function", {
       functionName: fullFunctionName,
       runtime: lambda.Runtime.PYTHON_3_13,
+      architecture: lambda.Architecture.ARM_64,
       entry: props.entry,
       index: props.index ?? "handler.py",
       handler: props.handler ?? "lambda_handler",
@@ -130,7 +131,10 @@ export class LambdaDockerFunction extends Construct {
 
     this.function = new lambda.DockerImageFunction(this, "Function", {
       functionName: fullFunctionName,
-      code: lambda.DockerImageCode.fromImageAsset(props.directory),
+      code: lambda.DockerImageCode.fromImageAsset(props.directory, {
+        platform: cdk.aws_ecr_assets.Platform.LINUX_ARM64,
+      }),
+      architecture: lambda.Architecture.ARM_64,
       environment: props.environment,
       timeout: props.timeout ?? cdk.Duration.seconds(60),
       memorySize: props.memorySize ?? 512,
