@@ -89,10 +89,14 @@ def _create_session_manager(
 ) -> Optional[Any]:
     """Create AgentCoreMemorySessionManager if memory_id is available.
 
+    Memory strategy:
+    - actor_id: team_id (team-wide long-term memory for facts/preferences)
+    - session_id: channel_id (channel-level short-term memory for conversation context)
+
     Args:
         memory_id: AgentCore Memory ID
-        session_id: Session ID (e.g., thread timestamp with underscores)
-        actor_id: Actor ID (e.g., channel ID)
+        session_id: Session ID (channel_id for channel-level context)
+        actor_id: Actor ID (team_id for team-wide memory)
 
     Returns:
         AgentCoreMemorySessionManager instance or None
@@ -155,16 +159,20 @@ def run_orchestration(
 
     Flow:
     0. Pre-filter short messages without mention
-    1. Call Router Agent (no session_manager) to decide action
+    1. Call Router Agent (with session_manager) to decide action based on conversation flow
     2. If ignore -> return Router's decision
     3. If reply needed -> call Conversation Agent (with session_manager)
     4. Return final result
 
+    Memory strategy:
+    - actor_id = team_id: Team-wide long-term memory
+    - session_id = channel_id: Channel-level short-term memory (includes threads)
+
     Args:
         user_message: The user's input message with context
         memory_id: AgentCore Memory ID for session management
-        session_id: Session ID (e.g., thread timestamp with underscores)
-        actor_id: Actor ID (e.g., channel ID)
+        session_id: Session ID (channel_id for channel-level context)
+        actor_id: Actor ID (team_id for team-wide memory)
 
     Returns:
         dict with should_reply, route, reply_mode, typing_style, reply_text, reason
@@ -204,14 +212,20 @@ def run_orchestration(
         }
 
     # ========================================
-    # Step 1: Call Router Agent
+    # Step 1: Call Router Agent (with Memory for conversation context)
     # ========================================
     try:
         logger.info("Step 1: Calling Router Agent...")
+
+        # Create session manager for memory - Router needs conversation context
+        # to make better decisions about whether/how to reply
+        router_session_manager = _create_session_manager(memory_id, session_id, actor_id)
+
         router = Agent(
             name="router",
             system_prompt=ROUTER_SYSTEM_PROMPT,
             model=ROUTER_MODEL_ID,
+            session_manager=router_session_manager,
             structured_output_model=RouterResponse,
             callback_handler=None,
         )

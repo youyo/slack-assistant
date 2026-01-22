@@ -5,9 +5,13 @@ InvokeAgentRuntime API from Step Functions.
 
 This handler:
 1. Parses the prompt and metadata from the payload
-2. Derives actor_id (channel_id) and session_id (thread_ts)
+2. Derives actor_id (team_id) and session_id (channel_id)
 3. Runs the 2-agent orchestration (Router -> Conversation)
 4. Returns the final JSON result for the Slack Posting Lambda
+
+Memory strategy:
+- actor_id = team_id: Team-wide long-term memory (facts, preferences)
+- session_id = channel_id: Channel-level short-term memory (conversation context)
 """
 
 import logging
@@ -32,29 +36,34 @@ app = BedrockAgentCoreApp()
 def _derive_ids_from_metadata(metadata: dict) -> dict:
     """Derive actor_id and session_id from Slack metadata.
 
-    - actor_id: channel_id (used for channel-level memory)
-    - session_id: thread_ts or ts (used for thread-level memory)
+    New memory strategy:
+    - actor_id: team_id (team-wide long-term memory)
+    - session_id: channel_id (channel-level short-term memory, includes threads)
 
-    Note: sessionId must match pattern [a-zA-Z0-9][a-zA-Z0-9-_]*
-    Slack timestamps contain dots (e.g., "1766995363.547589") which are invalid,
-    so we replace them with underscores.
+    This allows the bot to:
+    - Remember facts and preferences across the entire team (long-term)
+    - Maintain conversation context per channel (short-term)
     """
     slack_meta = metadata.get("slack", {})
-    channel_id = slack_meta.get("channel_id", "unknown")
-    thread_ts = slack_meta.get("thread_ts") or slack_meta.get("ts", "session")
-
-    # Replace dots with underscores to satisfy AgentCore Memory API constraints
-    session_id = thread_ts.replace(".", "_")
+    team_id = slack_meta.get("team_id", "unknown_team")
+    channel_id = slack_meta.get("channel_id", "unknown_channel")
 
     return {
-        "actor_id": channel_id,
-        "session_id": session_id,
+        "actor_id": team_id,
+        "session_id": channel_id,
     }
 
 
 def _build_user_message(prompt: str, metadata: dict) -> str:
     """Build the user message with Slack context for the agents."""
     slack_meta = metadata.get("slack", {})
+
+    # Determine if the message is in a thread or channel main
+    ts = slack_meta.get("ts", "")
+    thread_ts = slack_meta.get("thread_ts", "")
+    # If thread_ts differs from ts, message is in a thread
+    # If they're the same or thread_ts is empty, message is in channel main
+    is_in_thread = bool(thread_ts and thread_ts != ts)
 
     context_parts = [
         f"User message: {prompt}",
@@ -63,6 +72,7 @@ def _build_user_message(prompt: str, metadata: dict) -> str:
         f"- is_mentioned: {slack_meta.get('is_mentioned', False)}",
         f"- is_dm: {slack_meta.get('is_dm', False)}",
         f"- channel_kind: {slack_meta.get('channel_kind', 'unknown')}",
+        f"- is_in_thread: {is_in_thread}",
     ]
 
     return "\n".join(context_parts)
